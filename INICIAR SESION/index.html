@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Iniciar Sesión - RCAS</title>
+  <link rel="stylesheet" href="estilo.css">
+</head>
+
+<body>
+  <main class="main-container" role="main" aria-label="Página de inicio de sesión">
+    <section class="login-wrapper" aria-label="Formulario de inicio de sesión">
+      <div class="login-box">
+        <h1 class="title">¡Bienvenido de nuevo!</h1>
+        <p class="sub">Ingresa a tu cuenta RCAS</p>
+
+        <form id="loginForm" action="#" method="post" novalidate aria-describedby="formHelp">
+          <label for="identity">Usuario o Correo</label>
+          <input id="identity" name="identity" type="text" placeholder="usuario o correo@ejemplo.com"
+            autocomplete="username" required aria-required="true">
+
+          <label for="password">Contraseña</label>
+          <input id="password" name="password" type="password" placeholder="Mínimo 6 caracteres"
+            autocomplete="current-password" minlength="6" required aria-required="true">
+
+          <label class="remember">
+            <input id="remember" name="remember" type="checkbox" aria-label="Recordarme"> Recordarme
+          </label>
+
+          <button type="submit" class="btn" aria-label="Continuar">Continuar</button>
+        </form>
+
+        <div id="formHelp" class="sr-only">Todos los campos son requeridos.</div>
+
+        <div class="divider" role="separator" aria-label="Separador"><span>o continúa con</span></div>
+
+        <div class="social-login" aria-label="Opciones de inicio de sesión social">
+          <button class="social google" aria-label="Iniciar sesión con Google">
+            <img src="google.png" alt="Logo Google" class="icon"> Continuar con Google
+          </button>
+          <button class="social facebook" aria-label="Iniciar sesión con Facebook">
+            <img src="facebook.webp" alt="Logo Facebook" class="icon"> Continuar con Facebook
+          </button>
+        </div>
+
+        <a href="../index.html" class="regresar" aria-label="Regresar">← Volver al inicio</a>
+      </div>
+    </section>
+
+    <aside class="side-logo" aria-label="Tarjeta informativa">
+      <div class="image-card" aria-label="Tarjeta de imagen RCAS">
+        <img src="logo.jpg" alt="Logotipo de RCAS" class="logo">
+        <a href="../CREAR CUENTA/index2.html" class="crear-cuenta" aria-label="Crear cuenta">Crear cuenta</a>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    const API_BASE_URL = 'http://localhost:8081/api';
+
+    // Elementos del formulario
+    const form = document.getElementById('loginForm');
+    const identityInput = document.getElementById('identity');
+    const passwordInput = document.getElementById('password');
+    const submitBtn = document.querySelector('.btn');
+
+    // Validación en tiempo real mejorada
+    identityInput.addEventListener('input', function () {
+      validateIdentity(this);
+    });
+
+    identityInput.addEventListener('blur', function () {
+      validateIdentity(this);
+    });
+
+    passwordInput.addEventListener('input', function () {
+      validatePassword(this);
+    });
+
+    passwordInput.addEventListener('blur', function () {
+      validatePassword(this);
+    });
+
+    function validateIdentity(input) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const value = input.value.trim();
+
+      removeError(input);
+      input.classList.remove('error', 'success');
+
+      if (!value) {
+        return false;
+      }
+
+      // Si contiene @, validar como email
+      if (value.includes('@')) {
+        const isValid = emailRegex.test(value);
+        if (!isValid) {
+          input.classList.add('error');
+          showError(input, 'Correo electrónico inválido');
+          return false;
+        }
+      } else {
+        // Validar como usuario (mínimo 3 caracteres)
+        if (value.length < 3) {
+          input.classList.add('error');
+          showError(input, 'El usuario debe tener al menos 3 caracteres');
+          return false;
+        }
+      }
+
+      input.classList.add('success');
+      return true;
+    }
+
+    function validatePassword(input) {
+      const value = input.value;
+
+      removeError(input);
+      input.classList.remove('error', 'success');
+
+      if (!value) {
+        return false;
+      }
+
+      const isValid = value.length >= 6;
+
+      if (!isValid) {
+        input.classList.add('error');
+        showError(input, 'La contraseña debe tener al menos 6 caracteres');
+        return false;
+      } else {
+        input.classList.add('success');
+        return true;
+      }
+    }
+
+    function showError(input, message) {
+      removeError(input);
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error-message';
+      errorDiv.textContent = message;
+      input.insertAdjacentElement('afterend', errorDiv);
+    }
+
+    function removeError(input) {
+      const existingError = input.nextElementSibling;
+      if (existingError && existingError.classList.contains('error-message')) {
+        existingError.remove();
+      }
+    }
+
+    // Manejo del envío del formulario
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const identity = identityInput.value.trim();
+      const pwd = passwordInput.value.trim();
+
+      // Validaciones
+      const identityValid = validateIdentity(identityInput);
+      const passwordValid = validatePassword(passwordInput);
+
+      if (!identityValid || !passwordValid) {
+        showNotification('Por favor corrige los errores en el formulario', 'error');
+        return;
+      }
+
+      // Actualizar botón a estado de carga
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span> Iniciando sesión...';
+
+      try {
+        // Llamar al backend para autenticar
+        const response = await fetch(`${API_BASE_URL}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            identity: identity,  // Puede ser email o username
+            password: pwd
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(error || 'Credenciales incorrectas');
+        }
+
+        const userData = await response.json();
+
+        // Guardar usuario en localStorage
+        localStorage.setItem('rcas_user', JSON.stringify(userData));
+
+        console.log('✅ Usuario autenticado:', userData);
+
+        // Mostrar mensaje de éxito
+        showNotification(`¡Bienvenido ${userData.fullName || userData.username}!`, 'success');
+
+        // Redirigir al mapa después de un breve delay
+        setTimeout(() => {
+          window.location.href = '../MAP/map.html';
+        }, 1200);
+
+      } catch (error) {
+        console.error('Error:', error);
+        showNotification(error.message || 'Error al iniciar sesión', 'error');
+
+        // Resetear botón
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Continuar';
+      }
+    });
+
+    // Sistema de notificaciones mejorado
+    function showNotification(message, type) {
+      // Remover notificación existente
+      const existingNotif = document.querySelector('.notification');
+      if (existingNotif) {
+        existingNotif.remove();
+      }
+
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+
+      const icon = type === 'success' ? '✓' : '✕';
+      notification.innerHTML = `
+        <span style="font-size: 20px;">${icon}</span>
+        <span>${message}</span>
+      `;
+
+      document.body.appendChild(notification);
+
+      // Auto-remover después de 4 segundos
+      setTimeout(() => {
+        notification.style.animation = 'slideOutToRight 0.3s ease forwards';
+        setTimeout(() => notification.remove(), 300);
+      }, 4000);
+    }
+
+    // Agregar estilos de animación de salida
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideOutToRight {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(120%);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Detectar Enter en los inputs
+    identityInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        passwordInput.focus();
+      }
+    });
+
+    // Animación de entrada de la página
+    document.addEventListener('DOMContentLoaded', () => {
+      document.body.style.opacity = '0';
+      setTimeout(() => {
+        document.body.style.transition = 'opacity 0.5s ease';
+        document.body.style.opacity = '1';
+      }, 100);
+    });
+  </script>
+</body>
+
+</html>

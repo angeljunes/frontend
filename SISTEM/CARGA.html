@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>PRESENTACION SISTEMA</title>
+  <link rel="icon" type="image/png" href="LOGO1.png">
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Cargar logo
+    const logo = new Image();
+    logo.src = "LOGO1.png"; 
+
+    let opacity = 0;     // opacidad inicial
+    let scale = 0.1;     // tamaño inicial (10%)
+    const maxScale = 0.6; // tamaño máximo relativo
+    const rays = [];     
+    let phase = "intro"; // intro -> show -> fade -> done
+
+    // Crear partículas de luz
+    for (let i = 0; i < 50; i++) {
+      rays.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        dx: (Math.random() - 0.5) * 4,
+        dy: (Math.random() - 0.5) * 4,
+        length: Math.random() * 50 + 20
+      });
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (phase !== "done") {
+        // Dibujar las "luces blancas"
+        ctx.strokeStyle = "white";
+        ctx.lineWidth = 2;
+        rays.forEach(ray => {
+          ctx.beginPath();
+          ctx.moveTo(ray.x, ray.y);
+          ctx.lineTo(ray.x + ray.dx * ray.length, ray.y + ray.dy * ray.length);
+          ctx.stroke();
+
+          // Actualizar posición
+          ray.x += ray.dx;
+          ray.y += ray.dy;
+
+          // Rebote en los bordes
+          if (ray.x < 0 || ray.x > canvas.width) ray.dx *= -1;
+          if (ray.y < 0 || ray.y > canvas.height) ray.dy *= -1;
+        });
+      }
+
+      // Dibujar logo
+      if (logo.complete && phase !== "done") {
+        ctx.globalAlpha = opacity;
+
+        const baseSize = Math.min(canvas.width, canvas.height);
+        const size = baseSize * scale;
+
+        ctx.drawImage(
+          logo,
+          canvas.width / 2 - size / 2,
+          canvas.height / 2 - size / 2,
+          size,
+          size
+        );
+        ctx.globalAlpha = 1;
+      }
+
+      // Fases de animación
+      if (phase === "intro") {
+        if (opacity < 1) opacity += 0.01;
+        if (scale < maxScale) {
+          scale += 0.005;
+        } else {
+          setTimeout(() => phase = "fade", 1500); // queda fijo 1.5s y luego desaparece
+          phase = "show";
+        }
+      } else if (phase === "fade") {
+        if (opacity > 0) {
+          opacity -= 0.02;
+        } else {
+          phase = "done";
+          // 👉 Aquí redirecciona a tu otra página
+          window.location.href = "../INICIAR SESION/index.html";
+        }
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    logo.onload = () => {
+      draw();
+    };
+
+    // Ajustar tamaño al redimensionar
+    window.addEventListener("resize", () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    });
+  </script>
+</body>
+</html>

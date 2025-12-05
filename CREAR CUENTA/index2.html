@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Crear Cuenta - RCAS</title>
+  <link rel="stylesheet" href="estilo2.css">
+</head>
+
+<body>
+
+  <main class="main-container" role="main" aria-label="Página de registro">
+    <aside class="side-logo" aria-label="Tarjeta informativa">
+      <div class="image-card" aria-label="Tarjeta de imagen RCAS">
+        <img src="logo2.png" alt="Logotipo de RCAS" class="logo">
+        <a href="../INICIAR SESION/index.html" class="crear-cuenta" aria-label="Ir a iniciar sesión">
+          Iniciar Sesión
+        </a>
+      </div>
+    </aside>
+
+    <section class="login-wrapper" aria-label="Formulario de registro">
+      <div class="login-box">
+        <h1 class="title">¡Únete a RCAS!</h1>
+        <p class="sub"><b>Crea tu cuenta y empieza a reportar</b></p>
+
+        <form id="registerForm" action="#" method="post" autocomplete="off" novalidate aria-describedby="registerHelp">
+          <label for="fullname">Nombres y Apellidos</label>
+          <input id="fullname" name="fullname" type="text" placeholder="Juan Pérez López" autocomplete="name" required
+            aria-required="true">
+
+          <label for="email">Correo Electrónico</label>
+          <input id="email" name="email" type="email" placeholder="correo@ejemplo.com" autocomplete="email" required
+            aria-required="true">
+
+          <label for="cargo">Cargo</label>
+          <select id="cargo" name="cargo" required aria-label="Cargo">
+            <option value="" disabled selected>Seleccionar cargo...</option>
+            <option value="ciudadano">Ciudadano</option>
+            <option value="presidente">Presidente de barrio</option>
+            <option value="autoridad">Autoridad</option>
+          </select>
+
+          <label for="zona">Zona de Residencia</label>
+          <select id="zona" name="zona" required aria-label="Zona de residencia">
+            <option value="" disabled selected>Seleccionar zona...</option>
+            <option value="Lima">Lima</option>
+            <option value="Chilca">Chilca</option>
+            <option value="Nueva Esperanza">Nueva Esperanza</option>
+            <option value="Zona Este">Zona Este</option>
+            <option value="Zona Oeste">Zona Oeste</option>
+            <option value="Zona Centro">Zona Centro</option>
+          </select>
+
+          <label for="usuario">Usuario</label>
+          <input id="usuario" name="usuario" type="text" placeholder="nombre_usuario" autocomplete="username" required
+            aria-required="true">
+
+          <label for="password">Contraseña</label>
+          <input id="password" name="password" type="password" placeholder="Mínimo 6 caracteres" minlength="6" required
+            aria-required="true">
+
+          <!-- Password strength indicator -->
+          <div id="passwordStrength" class="password-strength" style="display: none;">
+            <div class="password-strength-bar"></div>
+          </div>
+          <div id="passwordStrengthText" class="password-strength-text" style="display: none;"></div>
+
+          <button type="submit" class="btn" aria-label="Crear cuenta">Crear Cuenta</button>
+        </form>
+
+        <div id="registerHelp" class="sr-only">Completa todos los campos y usa una contraseña de al menos 6
+          caracteres.
+        </div>
+
+        <div class="divider" role="separator" aria-label="Separador"><span>o regístrate con</span></div>
+
+        <div class="social-login" aria-label="Opciones de registro con redes">
+          <button class="social google" aria-label="Crear cuenta con Google">
+            <img src="google.png" alt="Logo Google" class="icon"> Continuar con Google
+          </button>
+          <button class="social facebook" aria-label="Crear cuenta con Facebook">
+            <img src="facebook.webp" alt="Logo Facebook" class="icon"> Continuar con Facebook
+          </button>
+        </div>
+
+        <a href="../INICIAR SESION/index.html" class="regresar" aria-label="Regresar">Ya tengo cuenta</a>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const API_BASE_URL = 'http://localhost:8081/api';
+
+    // Elementos del formulario
+    const form = document.getElementById('registerForm');
+    const fullnameInput = document.getElementById('fullname');
+    const emailInput = document.getElementById('email');
+    const usuarioInput = document.getElementById('usuario');
+    const passwordInput = document.getElementById('password');
+    const cargoSelect = document.getElementById('cargo');
+    const zonaSelect = document.getElementById('zona');
+    const submitBtn = document.querySelector('.btn');
+
+    // Validación en tiempo real
+    fullnameInput.addEventListener('blur', function () {
+      validateFullname(this);
+    });
+
+    emailInput.addEventListener('input', function () {
+      validateEmail(this);
+    });
+
+    emailInput.addEventListener('blur', function () {
+      validateEmail(this);
+    });
+
+    usuarioInput.addEventListener('input', function () {
+      validateUsername(this);
+    });
+
+    usuarioInput.addEventListener('blur', function () {
+      validateUsername(this);
+    });
+
+    passwordInput.addEventListener('input', function () {
+      validatePassword(this);
+      updatePasswordStrength(this.value);
+    });
+
+    passwordInput.addEventListener('blur', function () {
+      validatePassword(this);
+    });
+
+    cargoSelect.addEventListener('change', function () {
+      validateSelect(this);
+    });
+
+    zonaSelect.addEventListener('change', function () {
+      validateSelect(this);
+    });
+
+    // Funciones de validación
+    function validateFullname(input) {
+      const value = input.value.trim();
+      removeError(input);
+      input.classList.remove('error', 'success');
+
+      if (!value) {
+        return false;
+      }
+
+      if (value.length < 3) {
+        input.classList.add('error');
+        showError(input, 'El nombre debe tener al menos 3 caracteres');
+        return false;
+      }
+
+      input.classList.add('success');
+      return true;
+    }
+
+    function validateEmail(input) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const value = input.value.trim();
+
+      removeError(input);
+      input.classList.remove('error', 'success');
+
+      if (!value) {
+        return false;
+      }
+
+      if (!emailRegex.test(value)) {
+        input.classList.add('error');
+        showError(input, 'Correo electrónico inválido');
+        return false;
+      }
+
+      input.classList.add('success');
+      return true;
+    }
+
+    function validateUsername(input) {
+      const value = input.value.trim();
+      removeError(input);
+      input.classList.remove('error', 'success');
+
+      if (!value) {
+        return false;
+      }
+
+      if (value.length < 3) {
+        input.classList.add('error');
+        showError(input, 'El usuario debe tener al menos 3 caracteres');
+        return false;
+      }
+
+      if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+        input.classList.add('error');
+        showError(input, 'Solo letras, números y guión bajo');
+        return false;
+      }
+
+      input.classList.add('success');
+      return true;
+    }
+
+    function validatePassword(input) {
+      const value = input.value;
+      removeError(input);
+      input.classList.remove('error', 'success');
+
+      if (!value) {
+        return false;
+      }
+
+      if (value.length < 6) {
+        input.classList.add('error');
+        showError(input, 'La contraseña debe tener al menos 6 caracteres');
+        return false;
+      }
+
+      input.classList.add('success');
+      return true;
+    }
+
+    function validateSelect(select) {
+      removeError(select);
+      select.classList.remove('error', 'success');
+
+      if (!select.value) {
+        select.classList.add('error');
+        showError(select, 'Por favor selecciona una opción');
+        return false;
+      }
+
+      select.classList.add('success');
+      return true;
+    }
+
+    function showError(input, message) {
+      removeError(input);
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'error-message';
+      errorDiv.textContent = message;
+      input.parentNode.appendChild(errorDiv);
+    }
+
+    function removeError(input) {
+      const existingError = input.parentNode.querySelector('.error-message');
+      if (existingError) {
+        existingError.remove();
+      }
+    }
+
+    // Password strength indicator
+    function updatePasswordStrength(password) {
+      const strengthDiv = document.getElementById('passwordStrength');
+      const strengthText = document.getElementById('passwordStrengthText');
+
+      if (!password) {
+        strengthDiv.style.display = 'none';
+        strengthText.style.display = 'none';
+        return;
+      }
+
+      strengthDiv.style.display = 'block';
+      strengthText.style.display = 'block';
+
+      let strength = 0;
+      let strengthLabel = '';
+      let strengthClass = '';
+
+      // Check length
+      if (password.length >= 6) strength++;
+      if (password.length >= 8) strength++;
+
+      // Check for numbers
+      if (/\d/.test(password)) strength++;
+
+      // Check for uppercase
+      if (/[A-Z]/.test(password)) strength++;
+
+      // Check for special chars
+      if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+      // Reset classes
+      strengthDiv.className = 'password-strength';
+
+      if (strength <= 2) {
+        strengthLabel = 'Débil';
+        strengthClass = 'strength-weak';
+        strengthText.style.color = 'var(--error-color)';
+      } else if (strength <= 3) {
+        strengthLabel = 'Media';
+        strengthClass = 'strength-medium';
+        strengthText.style.color = 'var(--warning-color)';
+      } else {
+        strengthLabel = 'Fuerte';
+        strengthClass = 'strength-strong';
+        strengthText.style.color = 'var(--success-color)';
+      }
+
+      strengthDiv.classList.add(strengthClass);
+      strengthText.textContent = `Fortaleza: ${strengthLabel}`;
+    }
+
+    // Manejo del envío del formulario
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      const fullname = fullnameInput.value.trim();
+      const email = emailInput.value.trim();
+      const usuario = usuarioInput.value.trim();
+      const pwd = passwordInput.value.trim();
+      const cargo = cargoSelect.value;
+      const zona = zonaSelect.value;
+
+      // Validaciones
+      const fullnameValid = validateFullname(fullnameInput);
+      const emailValid = validateEmail(emailInput);
+      const usernameValid = validateUsername(usuarioInput);
+      const passwordValid = validatePassword(passwordInput);
+      const cargoValid = validateSelect(cargoSelect);
+      const zonaValid = validateSelect(zonaSelect);
+
+      if (!fullnameValid || !emailValid || !usernameValid || !passwordValid || !cargoValid || !zonaValid) {
+        showNotification('Por favor completa todos los campos correctamente', 'error');
+        return;
+      }
+
+      // Mapeo de roles: ciudadano -> USER, presidente/autoridad -> ADMIN
+      let role = 'USER';
+      if (cargo === 'presidente' || cargo === 'autoridad') {
+        role = 'ADMIN';
+      }
+
+      // Actualizar botón a estado de carga
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="spinner"></span> Creando cuenta...';
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: fullname,
+            email: email,
+            username: usuario,
+            password: pwd,
+            role: role,
+            zone: zona
+          })
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(error || 'Error al crear la cuenta');
+        }
+
+        const data = await response.json();
+
+        console.log('✅ Cuenta creada:', data);
+
+        // Mostrar mensaje de éxito
+        showNotification('¡Cuenta creada exitosamente! Redirigiendo...', 'success');
+
+        // Redirigir al login después de un breve delay
+        setTimeout(() => {
+          window.location.href = '../INICIAR SESION/index.html';
+        }, 1500);
+
+      } catch (error) {
+        console.error('Error:', error);
+        showNotification(error.message || 'Error al crear la cuenta', 'error');
+
+        // Resetear botón
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = 'Crear Cuenta';
+      }
+    });
+
+    // Sistema de notificaciones
+    function showNotification(message, type) {
+      // Remover notificación existente
+      const existingNotif = document.querySelector('.notification');
+      if (existingNotif) {
+        existingNotif.remove();
+      }
+
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+
+      const icon = type === 'success' ? '✓' : '✕';
+      notification.innerHTML = `
+        <span style="font-size: 20px;">${icon}</span>
+        <span>${message}</span>
+      `;
+
+      document.body.appendChild(notification);
+
+      // Auto-remover después de 4 segundos
+      setTimeout(() => {
+        notification.style.animation = 'slideOutToRight 0.3s ease forwards';
+        setTimeout(() => notification.remove(), 300);
+      }, 4000);
+    }
+
+    // Agregar estilos de animación de salida
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes slideOutToRight {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(120%);
+          opacity: 0;
+        }
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Animación de entrada de la página
+    document.addEventListener('DOMContentLoaded', () => {
+      document.body.style.opacity = '0';
+      setTimeout(() => {
+        document.body.style.transition = 'opacity 0.5s ease';
+        document.body.style.opacity = '1';
+      }, 100);
+    });
+  </script>
+</body>
+
+</html>

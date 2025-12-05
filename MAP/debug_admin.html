@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico de Admin RCAS</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #f5f7fa;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-top: 0;
+        }
+
+        pre {
+            background: #2d3436;
+            color: #a29bfe;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>🕵️ Diagnóstico de Usuario</h1>
+        <div id="result">Analizando...</div>
+
+        <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
+            <h3>Acciones:</h3>
+            <a href="map_v2.html" class="btn">Ir al Mapa (v2)</a>
+            <a href="../INICIAR SESION/index.html" class="btn" style="background: #6c757d;">Ir a Iniciar Sesión</a>
+        </div>
+    </div>
+
+    <script>
+        const result = document.getElementById('result');
+
+        // 1. Verificar localStorage
+        const userStr = localStorage.getItem('rcas_user');
+
+        let html = '';
+
+        if (!userStr) {
+            html += '<div class="status error">❌ NO SE ENCONTRÓ SESIÓN</div>';
+            html += '<p>No hay datos de usuario en <code>localStorage.getItem("rcas_user")</code>.</p>';
+            html += '<p><strong>Solución:</strong> Debes iniciar sesión nuevamente.</p>';
+        } else {
+            html += '<div class="status success">✅ SESIÓN ENCONTRADA</div>';
+
+            try {
+                const data = JSON.parse(userStr);
+                // CRÍTICO: El usuario puede estar anidado en data.user o ser data directamente
+                const user = data.user || data;
+
+                // Mostrar datos crudos
+                html += '<h3>📦 Datos en LocalStorage (Estructura Corregida):</h3>';
+                html += `<pre>${JSON.stringify(user, null, 2)}</pre>`;
+
+                // Análisis de campos
+                html += '<h3>🔍 Análisis de Permisos:</h3>';
+                html += '<ul>';
+
+                // Username
+                html += `<li><strong>Usuario:</strong> ${user.username || 'No definido'}</li>`;
+
+                // Rol
+                let rawRole = user.role || user.rol || user.type || user.tipo;
+                html += `<li><strong>Propiedad de Rol (raw):</strong> "${rawRole}"</li>`;
+
+                if (rawRole) {
+                    const roleUpper = String(rawRole).toUpperCase();
+                    const isAdmin = roleUpper.includes('ADMIN');
+
+                    if (isAdmin) {
+                        html += `<li style="color:green; font-weight:bold; margin-top:10px;">✅ ES ADMIN: SÍ</li>`;
+                        html += `<p>El sistema DEBERÍA mostrar los botones de editar/eliminar.</p>`;
+                    } else {
+                        html += `<li style="color:red; font-weight:bold; margin-top:10px;">❌ ES ADMIN: NO</li>`;
+                        html += `<p>El rol "${roleUpper}" no contiene la palabra "ADMIN".</p>`;
+                    }
+                } else {
+                    html += `<li style="color:red; font-weight:bold; margin-top:10px;">❌ ROL NO DETECTADO</li>`;
+                    html += `<p>El objeto de usuario no tiene ninguna propiedad conocida de rol (role, rol, type, tipo).</p>`;
+                }
+                html += '</ul>';
+
+            } catch (e) {
+                html += `<div class="status error">❌ ERROR DE JSON</div>`;
+                html += `<p>Los datos en localStorage no son un JSON válido: ${e.message}</p>`;
+                html += `<pre>${userStr}</pre>`;
+            }
+        }
+
+        result.innerHTML = html;
+    </script>
+</body>
+
+</html>

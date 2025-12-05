@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Alertas RCAS</title>
+    <link rel="stylesheet" href="stylemap.css">
+    <link rel="stylesheet" href="modal-styles.css">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        /* Estilos de emergencia para asegurar visibilidad */
+        .btn-edit {
+            background-color: #3b82f6 !important;
+            color: white !important;
+        }
+
+        .btn-delete {
+            background-color: #ef4444 !important;
+            color: white !important;
+        }
+
+        .alert-card-actions button {
+            margin-left: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Main Container -->
+    <main class="container">
+        <div class="contenedor">
+            <!-- Sidebar Panel -->
+            <aside class="sidebar" role="complementary" aria-label="Panel de control">
+                <div class="sidebar-header">
+                    <h2>🗺️ Sistema RCAS</h2>
+                </div>
+
+                <div class="sidebar-content">
+                    <div class="form-section">
+                        <label for="btnAutoLocation">Tu Ubicación</label>
+                        <button class="btn btn-location" id="btnAutoLocation">📍 Usar Mi Ubicación</button>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="countrySelect">País</label>
+                        <select id="countrySelect" aria-label="Seleccionar país">
+                            <option value="">Seleccionar País</option>
+                        </select>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="citySelect">Ciudad</label>
+                        <select id="citySelect" disabled aria-label="Seleccionar ciudad">
+                            <option value="">Seleccionar Ciudad</option>
+                        </select>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="direccionInput">Dirección</label>
+                        <input type="text" id="direccionInput" placeholder="Ingrese dirección" aria-label="Dirección">
+                    </div>
+
+                    <div class="form-section">
+                        <label for="perimetroInput">Área de Escaneo</label>
+                        <select id="perimetroInput" aria-label="Área de escaneo">
+                            <option value="100">Pequeño (100m)</option>
+                            <option value="200">Mediano (200m)</option>
+                            <option value="400">Grande (400m)</option>
+                            <option value="500" selected>Muy Grande (500m)</option>
+                        </select>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="filtros">
+                        <label for="dangerLevelSelect">Nivel de Peligro</label>
+                        <select id="dangerLevelSelect" aria-label="Nivel de peligro">
+                            <option value="">Todos los niveles</option>
+                            <option value="ALTA">Alta</option>
+                            <option value="MEDIA" selected>Media</option>
+                            <option value="BAJA">Baja</option>
+                        </select>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn btn-alert" id="btnRegistrarAlerta">🚨 Registrar Alerta</button>
+                        <button class="btn btn-falta" id="btnRegistrarFalta">📋 Registrar Falta</button>
+                        <button class="btn btn-estado">📊 Estado de Alerta</button>
+                        <!-- Botón oculto hasta que el backend implemente /api/users -->
+                        <button class="btn btn-admin-users" id="btnAdminUsers"
+                            style="display: none; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            👥 Gestión de Usuarios
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Map Section -->
+            <section class="map-section" role="main" aria-label="Mapa interactivo">
+                <!-- Search Bar -->
+                <input type="text" id="buscar" placeholder="🔍 Buscar ubicación..." class="search"
+                    aria-label="Buscar ubicación" autocomplete="off">
+
+                <!-- Suggestions Dropdown -->
+                <div id="sugerencias" class="sugerencias" role="listbox" aria-live="polite"></div>
+
+                <!-- Emergency Button -->
+                <button id="emergencyBtn" class="btn-emergency" aria-label="Botón de emergencia">
+                    🚨 Emergencia
+                </button>
+
+                <!-- Map Container -->
+                <div id="map" aria-label="Mapa de alertas"></div>
+
+                <!-- Legend -->
+                <div class="leyenda" role="group" aria-label="Leyenda del mapa">
+                    <button class="leyenda-btn yellow" aria-label="Alertas verificadas">✓ Verificadas</button>
+                    <button class="leyenda-btn red" aria-label="Alertas pendientes">⏳ Pendientes</button>
+                    <button class="leyenda-btn green" aria-label="Alertas resueltas">✓ Resueltas</button>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Modal para Registrar Falta -->
+    <div id="modalFalta" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Registrar Falta</h2>
+            <form id="formFalta">
+                <div class="form-group">
+                    <label for="tipoFalta">Tipo de Falta:</label>
+                    <select id="tipoFalta" required>
+                        <option value="">Seleccione un tipo</option>
+                        <option value="inasistencia">Inasistencia</option>
+                        <option value="tardanza">Tardanza</option>
+                        <option value="incumplimiento">Incumplimiento</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="descripcionFalta">Descripción:</label>
+                    <textarea id="descripcionFalta" rows="3" required></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="fechaFalta">Fecha y Hora:</label>
+                    <input type="datetime-local" id="fechaFalta" required>
+                </div>
+                <div class="form-group">
+                    <label for="evidenciaFalta">Evidencia (opcional):</label>
+                    <input type="file" id="evidenciaFalta" accept="image/*, .pdf">
+                </div>
+                <button type="submit" class="btn">Registrar Falta</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Estado de Alertas -->
+    <div id="modalEstadoAlerta" class="modal">
+        <div class="modal-content modal-wide">
+            <span class="close" id="closeEstadoModal">&times;</span>
+            <h2>📊 Estado de Alertas</h2>
+
+            <!-- Filtros rápidos -->
+            <div class="modal-filters">
+                <button class="filter-btn active" data-filter="all">Todas</button>
+                <button class="filter-btn" data-filter="PENDIENTE">Pendientes</button>
+                <button class="filter-btn" data-filter="VERIFICADA">Verificadas</button>
+                <button class="filter-btn" data-filter="RESUELTA">Resueltas</button>
+            </div>
+
+            <!-- Lista de alertas -->
+            <div id="alertListContainer" class="alert-list-modal">
+                <p style="text-align: center; color: #666;">Cargando alertas...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Editar Estado de Alerta -->
+    <div id="modalEditarEstado" class="modal" style="z-index: 2000;">
+        <div class="modal-content" style="max-width: 400px;">
+            <span class="close" onclick="closeEditModal()">&times;</span>
+            <h2 style="margin-bottom: 20px; color: var(--color-primary);">✏️ Cambiar Estado</h2>
+            <div class="form-group">
+                <label for="editStatusSelect" style="display: block; margin-bottom: 10px; font-weight: 600;">Nuevo
+                    Estado:</label>
+                <select id="editStatusSelect"
+                    style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background-color: #f9f9f9; font-size: 16px;">
+                    <option value="PENDIENTE">⏳ PENDIENTE</option>
+                    <option value="VERIFICADA">✅ VERIFICADA</option>
+                    <option value="RESUELTA">🎉 RESUELTA</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px; justify-content: flex-end;">
+                <button onclick="closeEditModal()"
+                    style="padding: 10px 20px; border-radius: 8px; border: 1px solid #ddd; background: white; cursor: pointer;">Cancelar</button>
+                <button onclick="saveAlertStatus()"
+                    style="padding: 10px 20px; border-radius: 8px; border: none; background: var(--color-primary); color: white; font-weight: 600; cursor: pointer;">Guardar
+                    Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Gestión de Usuarios (ADMIN only) -->
+    <div id="modalGestionUsuarios" class="modal" style="z-index: 2000; display: none;">
+        <div class="modal-content modal-wide" style="max-width: 900px;">
+            <span class="close" onclick="closeUsersModal()">&times;</span>
+            <h2
+                style="margin-bottom: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                👥 Gestión de Usuarios
+            </h2>
+
+            <div
+                style="margin-bottom: 1.5rem; padding: 1rem; background: rgba(255, 187, 51, 0.1); border-radius: 8px; border-left: 4px solid #f59e0b;">
+                <strong style="color: #f59e0b;">⚠️ Panel de Administración</strong>
+                <p style="margin-top: 0.5rem; color: #666; font-size: 0.9rem;">
+                    Puedes cambiar roles, editar nombres de usuario y eliminar usuarios. No puedes modificarte a ti
+                    mismo.
+                </p>
+            </div>
+
+            <div id="usersModalContent" style="overflow-x: auto;">
+                <table class="alerts-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: rgba(0, 0, 0, 0.05);">
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">ID</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Usuario</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Email</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Rol</th>
+                            <th style="padding: 12px; text-align: left; border-bottom: 2px solid #ddd;">Zona</th>
+                            <th style="padding: 12px; text-align: center; border-bottom: 2px solid #ddd;">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalUsersTableBody">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 2rem; color: #666;">Cargando usuarios...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="map.js"></script>
+    <script>
+        // ========================================
+        // MODAL DE ESTADO DE ALERTAS (INCRUSTADO)
+        // ========================================
+
+        let currentUser = null;
+        let currentFilterStatus = 'all';
+        let modalAlerts = [];
+        let currentEditingAlertId = null;
+
+        // Función para obtener el usuario actual
+        function getCurrentUser() {
+            const userStr = localStorage.getItem('rcas_user');
+            if (userStr) {
+                try {
+                    const data = JSON.parse(userStr);
+                    // CRÍTICO: El usuario puede estar anidado en data.user o ser data directamente
+                    const user = data.user || data;
+                    console.log('✅ Usuario procesado:', user);
+                    return user;
+                } catch (e) {
+                    console.error('Error parsing user:', e);
+                }
+            }
+            return null;
+        }
+
+        // Abrir modal de Estado de Alertas
+        function openAlertStatusModal() {
+            const modal = document.getElementById('modalEstadoAlerta');
+            if (modal) {
+                currentUser = getCurrentUser();
+                if (!currentUser) {
+                    alert('⚠️ Debes iniciar sesión primero.\n\nSerás redirigido a la página de inicio de sesión.');
+                    window.location.href = '../INICIAR SESION/index.html';
+                    return;
+                }
+                modal.style.display = 'block';
+                loadAlertsForModal();
+            }
+        }
+
+        // Cerrar modal
+        function closeAlertStatusModal() {
+            const modal = document.getElementById('modalEstadoAlerta');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Cargar alertas
+        async function loadAlertsForModal() {
+            const container = document.getElementById('alertListContainer');
+            if (!container) return;
+
+            container.innerHTML = '<p style="text-align: center; color: #666;">Cargando alertas...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/alerts`);
+                if (!response.ok) throw new Error('Error al cargar alertas');
+                const alerts = await response.json();
+                modalAlerts = Array.isArray(alerts) ? alerts : [];
+                renderAlertCards(modalAlerts);
+            } catch (error) {
+                console.error('Error loading alerts:', error);
+                container.innerHTML = '<p style="text-align: center; color: var(--color-danger);">Error al cargar alertas.</p>';
+            }
+        }
+
+        // Renderizar tarjetas
+        function renderAlertCards(alerts) {
+            const container = document.getElementById('alertListContainer');
+            if (!container) return;
+
+            let filteredAlerts = alerts;
+            if (currentFilterStatus !== 'all') {
+                filteredAlerts = alerts.filter(a => {
+                    const status = (a.status || a.estado || '').toString().toUpperCase();
+                    return status === currentFilterStatus.toUpperCase();
+                });
+            }
+
+            if (filteredAlerts.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666;">No hay alertas para mostrar.</p>';
+                return;
+            }
+
+            // Detección de ADMIN
+            const user = getCurrentUser();
+            let isAdmin = false;
+            let userRole = 'INVITADO';
+
+            if (user) {
+                userRole = user.role || user.rol || 'USER';
+                userRole = String(userRole).toUpperCase();
+                isAdmin = userRole.includes('ADMIN');
+            }
+
+            // Debug en título
+            const modalTitle = document.querySelector('#modalEstadoAlerta h2');
+            if (modalTitle) {
+                modalTitle.innerHTML = `📊 Estado de Alertas <span style="font-size: 12px; opacity: 0.7; display: block; margin-top: 5px;">Usuario: ${user ? (user.username || 'Usuario') : 'Anónimo'} | Rol: ${userRole}</span>`;
+            }
+
+            container.innerHTML = filteredAlerts.map(alert => `
+                <div class="alert-card">
+                    <div class="alert-card-header">
+                        <div>
+                            <div class="alert-card-title">${alert.title || 'Sin título'}</div>
+                            <div class="alert-card-meta">
+                                <span class="alert-badge ${(alert.priority || 'media').toLowerCase()}">${alert.priority || 'MEDIA'}</span>
+                                <span class="alert-badge ${(alert.status || 'pendiente').toLowerCase()}">${alert.status || 'PENDIENTE'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert-card-description">${alert.description || 'Sin descripción'}</div>
+                    <div class="alert-card-footer">
+                        <div class="alert-card-info">📍 ${alert.zone || 'Sin zona'} • 🕒 ${new Date(alert.createdAt).toLocaleString()}</div>
+                        <div class="alert-card-actions" style="display: flex; gap: 8px; margin-top: 10px;">
+                            <button class="btn-small btn-view" onclick="viewAlertOnMap(${alert.latitude}, ${alert.longitude})" 
+                                style="background: linear-gradient(135deg, #f0f0f0, #e0e0e0); color: #333; border: none; padding: 6px 12px; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                📍 Ver
+                            </button>
+                            ${isAdmin ? `
+                                <button class="btn-small btn-edit" onclick="openEditModal('${alert.id}', '${alert.status}')" 
+                                    style="background: linear-gradient(135deg, #3b82f6, #2563eb); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);">
+                                    ✏️ Editar
+                                </button>
+                                <button class="btn-small btn-delete" onclick="deleteAlertFromModal('${alert.id}')" 
+                                    style="background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border: none; padding: 6px 12px; border-radius: 20px; font-weight: 600; cursor: pointer; transition: all 0.3s; box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3);">
+                                    🗑️ Eliminar
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Funciones auxiliares
+        function viewAlertOnMap(lat, lng) {
+            if (lat && lng) {
+                map.setView([lat, lng], 17);
+                closeAlertStatusModal();
+            }
+        }
+
+        // --- NUEVAS FUNCIONES PARA EL MODAL DE EDICIÓN ---
+        function openEditModal(alertId, currentStatus) {
+            currentEditingAlertId = alertId;
+            const modal = document.getElementById('modalEditarEstado');
+            const select = document.getElementById('editStatusSelect');
+
+            if (select) {
+                select.value = currentStatus || 'PENDIENTE';
+            }
+
+            if (modal) {
+                modal.style.display = 'block';
+            }
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('modalEditarEstado');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+            currentEditingAlertId = null;
+        }
+
+        async function saveAlertStatus() {
+            if (!currentEditingAlertId) return;
+
+            const select = document.getElementById('editStatusSelect');
+            const newStatus = select.value;
+
+            try {
+                const user = getCurrentUser();
+                const userId = user ? (user.id || user._id) : '';
+
+                const response = await fetch(`${API_BASE}/alerts/${currentEditingAlertId}?userId=${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (!response.ok) throw new Error('Error al actualizar');
+
+                alert('✅ Estado actualizado correctamente');
+                closeEditModal();
+                loadAlertsForModal(); // Recargar lista
+            } catch (error) {
+                console.error('Error updating alert:', error);
+                alert('❌ Error al actualizar el estado');
+            }
+        }
+
+        async function deleteAlertFromModal(alertId) {
+            if (!confirm('¿Eliminar alerta?')) return;
+            try {
+                const user = getCurrentUser();
+                const userId = user ? (user.id || user._id) : '';
+                await fetch(`${API_BASE}/alerts/${alertId}?userId=${userId}`, { method: 'DELETE' });
+                alert('✅ Alerta eliminada');
+                loadAlertsForModal();
+            } catch (error) {
+                alert('❌ Error al eliminar');
+            }
+        }
+
+        // ========================================
+        // GESTIÓN DE USUARIOS (MODAL)
+        // ========================================
+
+        function openUsersModal() {
+            const user = getCurrentUser();
+            if (!user || user.role.toUpperCase() !== 'ADMIN') {
+                alert('⚠️ Solo los administradores pueden acceder a esta función.');
+                return;
+            }
+
+            const modal = document.getElementById('modalGestionUsuarios');
+            if (modal) {
+                modal.style.display = 'block';
+                loadUsersForModal();
+            }
+        }
+
+        function closeUsersModal() {
+            const modal = document.getElementById('modalGestionUsuarios');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        async function loadUsersForModal() {
+            const tbody = document.getElementById('modalUsersTableBody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">Cargando usuarios...</td></tr>';
+
+            try {
+                const response = await fetch(`${API_BASE}/users`);
+                if (!response.ok) throw new Error('Error al cargar usuarios');
+                const users = await response.json();
+
+                tbody.innerHTML = '';
+
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No hay usuarios registrados</td></tr>';
+                    return;
+                }
+
+                const currentUser = getCurrentUser();
+                users.forEach(user => {
+                    const isCurrentUser = currentUser && currentUser.id === user.id;
+
+                    const tr = document.createElement('tr');
+                    tr.style.borderBottom = '1px solid #eee';
+                    tr.innerHTML = `
+                    <td style="padding: 12px;">${user.id}</td>
+                    <td style="padding: 12px;">
+                        <strong id="username-modal-${user.id}">${user.username || user.identity || 'N/A'}</strong>
+                        ${!isCurrentUser ? `
+                            <button onclick="editUsernameModal('${user.id}')" style="margin-left: 8px; background: none; border: none; cursor: pointer; font-size: 1rem; opacity: 0.6;" title="Editar">✏️</button>
+                        ` : ''}
+                    </td>
+                    <td style="padding: 12px;">${user.email || 'N/A'}</td>
+                    <td style="padding: 12px;">
+                        <select id="role-modal-${user.id}" 
+                                onchange="changeUserRoleModal('${user.id}', this.value)"
+                                style="padding: 6px 24px 6px 12px; border-radius: 6px; border: 1px solid #ddd; background: ${user.role === 'ADMIN' ? 'rgba(233, 69, 96, 0.15)' : 'rgba(59, 130, 246, 0.15)'}; color: #333; font-weight: 600; cursor: pointer;"
+                                ${isCurrentUser ? 'disabled' : ''}>
+                            <option value="USER" ${user.role === 'USER' ? 'selected' : ''}>USER</option>
+                            <option value="ADMIN" ${user.role === 'ADMIN' ? 'selected' : ''}>ADMIN</option>
+                        </select>
+                        ${isCurrentUser ? '<div style="font-size: 0.7rem; color: #999; margin-top: 2px;">(Tú)</div>' : ''}
+                    </td>
+                    <td style="padding: 12px;">${user.zone || 'General'}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        ${!isCurrentUser ? `
+                            <button onclick="deleteUserModal('${user.id}', '${user.username || user.identity}')" 
+                                    style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: #ef4444; opacity: 0.7;" 
+                                    title="Eliminar">🗑️</button>
+                        ` : '<span style="color: #999; font-size: 0.8rem;">-</span>'}
+                    </td>
+                `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error('Error loading users:', error);
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: #ef4444;">Error al cargar usuarios</td></tr>';
+            }
+        }
+
+        async function editUsernameModal(userId) {
+            const usernameElement = document.getElementById(`username-modal-${userId}`);
+            const currentUsername = usernameElement.textContent;
+
+            const newUsername = prompt('Nuevo nombre de usuario:', currentUsername);
+            if (!newUsername || newUsername === currentUsername) return;
+
+            if (newUsername.length < 3) {
+                alert('El nombre de usuario debe tener al menos 3 caracteres');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: newUsername })
+                });
+
+                if (!response.ok) throw new Error('Error al actualizar usuario');
+
+                usernameElement.textContent = newUsername;
+                showToast('✅ Nombre de usuario actualizado');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function changeUserRoleModal(userId, newRole) {
+            if (!confirm(`¿Cambiar el rol de este usuario a ${newRole}?`)) {
+                loadUsersForModal();
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/users/${userId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+
+                if (!response.ok) throw new Error('Error al actualizar rol');
+
+                showToast(`✅ Rol actualizado a ${newRole}`);
+
+                const select = document.getElementById(`role-modal-${userId}`);
+                if (select) {
+                    select.style.background = newRole === 'ADMIN' ? 'rgba(233, 69, 96, 0.15)' : 'rgba(59, 130, 246, 0.15)';
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+                loadUsersForModal();
+            }
+        }
+
+        async function deleteUserModal(userId, username) {
+            const confirmed = confirm(
+                `⚠️ ¿Estás seguro de eliminar al usuario "${username}"?\n\n` +
+                `Esta acción NO se puede deshacer.`
+            );
+
+            if (!confirmed) return;
+
+            const doubleConfirm = prompt(
+                `Para confirmar, escribe "ELIMINAR" (en mayúsculas):`,
+                ''
+            );
+
+            if (doubleConfirm !== 'ELIMINAR') {
+                alert('Eliminación cancelada');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/users/${userId}`, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) throw new Error('Error al eliminar usuario');
+
+                showToast('✅ Usuario eliminado correctamente');
+                loadUsersForModal();
+            } catch (error) {
+                alert('Error al eliminar: ' + error.message);
+            }
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #333; color: white; padding: 1rem 2rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 9999; animation: slideIn 0.3s;';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        // ========================================
+        // INICIALIZACIÓN
+        // ========================================
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            const btnEstado = document.querySelector('.btn-estado');
+            const closeBtn = document.getElementById('closeEstadoModal');
+            const modal = document.getElementById('modalEstadoAlerta');
+
+            if (btnEstado) btnEstado.addEventListener('click', openAlertStatusModal);
+            if (closeBtn) closeBtn.addEventListener('click', closeAlertStatusModal);
+            if (modal) window.addEventListener('click', (e) => { if (e.target === modal) closeAlertStatusModal(); });
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentFilterStatus = btn.getAttribute('data-filter');
+                    renderAlertCards(modalAlerts);
+                });
+            });
+
+            // Configurar botón de gestión de usuarios (siempre visible)
+            const btnAdminUsers = document.getElementById('btnAdminUsers');
+            if (btnAdminUsers) {
+                btnAdminUsers.addEventListener('click', () => {
+                    const user = getCurrentUser();
+
+                    if (!user) {
+                        alert('⚠️ Debes iniciar sesión para acceder a esta función.\n\nRedirigiendo al login...');
+                        window.location.href = '../INICIAR SESION/index.html';
+                        return;
+                    }
+
+                    if (user.role && user.role.toUpperCase() === 'ADMIN') {
+                        openUsersModal();
+                    } else {
+                        alert('⚠️ Solo los administradores pueden acceder a la gestión de usuarios.\n\nContacta a un administrador para cambiar tu rol.');
+                    }
+                });
+            }
+
+            console.log('✅ Modal de Alertas (Incrustado) Inicializado');
+        });
+    </script>
+</body>
+
+</html>

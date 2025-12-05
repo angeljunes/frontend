@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RCAS - Sistema de Registro y Control de Alertas de Seguridad</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div class="hero-content">
+            <div class="logo-container">
+                <div class="logo-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <h1 class="hero-title">Sistema RCAS</h1>
+            </div>
+
+            <p class="hero-subtitle">Registro y Control de Alertas de Seguridad</p>
+            <p class="hero-description">
+                Plataforma integral para la gestión de alertas ciudadanas,
+                monitoreo en tiempo real y coordinación de seguridad comunitaria.
+            </p>
+
+            <!-- Main Action Buttons -->
+            <div class="action-buttons">
+                <a href="INICIAR SESION/index.html" class="btn btn-primary">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Iniciar Sesión</span>
+                </a>
+                <a href="CREAR CUENTA/index2.html" class="btn btn-secondary">
+                    <i class="fas fa-user-plus"></i>
+                    <span>Crear Cuenta</span>
+                </a>
+            </div>
+
+            <!-- Quick Access -->
+            <div class="quick-access">
+                <a href="MAP/map_v2.html" class="quick-link">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <span>Ver Mapa Público</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- Animated Background -->
+        <div class="animated-bg">
+            <div class="circle circle-1"></div>
+            <div class="circle circle-2"></div>
+            <div class="circle circle-3"></div>
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <div class="features-section">
+        <div class="container">
+            <h2 class="section-title">Características del Sistema</h2>
+
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-map-pin"></i>
+                    </div>
+                    <h3>Geolocalización</h3>
+                    <p>Registra y visualiza alertas con ubicación exacta en tiempo real</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-bell"></i>
+                    </div>
+                    <h3>Alertas Inteligentes</h3>
+                    <p>Sistema de notificaciones por nivel de prioridad y zona</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>Gestión Comunitaria</h3>
+                    <p>Coordinación entre ciudadanos, autoridades y presidentes de barrio</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Estadísticas</h3>
+                    <p>Análisis de patrones y tendencias de seguridad por zona</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-mobile-alt"></i>
+                    </div>
+                    <h3>Multi-Plataforma</h3>
+                    <p>Acceso desde cualquier dispositivo con diseño responsive</p>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-lock"></i>
+                    </div>
+                    <h3>Seguridad</h3>
+                    <p>Sistema de autenticación y roles con encriptación de datos</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Info Section -->
+    <div class="info-section">
+        <div class="container">
+            <div class="info-content">
+                <h2>¿Cómo Funciona?</h2>
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <h3>Regístrate</h3>
+                        <p>Crea tu cuenta seleccionando tu rol y zona de residencia</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <h3>Reporta</h3>
+                        <p>Registra alertas de seguridad con ubicación y descripción</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <h3>Visualiza</h3>
+                        <p>Consulta alertas activas en el mapa interactivo</p>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <h3>Coordina</h3>
+                        <p>Gestiona y resuelve incidentes con la comunidad</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 RCAS - Registro y Control de Alertas de Seguridad</p>
+            <p class="footer-subtitle">Comunidad segura, futuro mejor</p>
+        </div>
+    </footer>
+
+    <script>
+        // Check if user is already logged in
+        document.addEventListener('DOMContentLoaded', () => {
+            const user = localStorage.getItem('rcas_user');
+            if (user) {
+                try {
+                    const userData = JSON.parse(user);
+                    console.log('Usuario detectado:', userData.fullName || userData.username);
+
+                    // Show welcome message
+                    const heroDescription = document.querySelector('.hero-description');
+                    if (heroDescription) {
+                        heroDescription.innerHTML = `
+                            ¡Bienvenido de nuevo, <strong>${userData.fullName || userData.username}</strong>!<br>
+                            <a href="MAP/map_v2.html" style="color: #3b82f6; text-decoration: none; font-weight: 600;">
+                                Ir directamente al Mapa →
+                            </a>
+                        `;
+                    }
+                } catch (e) {
+                    console.error('Error parsing user data:', e);
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

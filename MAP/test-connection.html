@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Conexión RCAS Backend</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        select, button { padding: 8px; margin: 5px; }
+        #log { background: #f5f5f5; padding: 10px; height: 200px; overflow-y: auto; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test de Conexión RCAS Backend</h1>
+    
+    <div class="test-section">
+        <h3>1. Estado de la Conexión</h3>
+        <button onclick="testConnection()">🔄 Probar Conexión</button>
+        <div id="connectionStatus">Esperando prueba...</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>2. Test de Países</h3>
+        <button onclick="testCountries()">📍 Cargar Países</button>
+        <select id="testCountrySelect">
+            <option>Esperando datos...</option>
+        </select>
+    </div>
+    
+    <div class="test-section">
+        <h3>3. Test de Ciudades</h3>
+        <button onclick="testCities()">🏙️ Cargar Ciudades (Perú)</button>
+        <select id="testCitySelect">
+            <option>Esperando datos...</option>
+        </select>
+    </div>
+    
+    <div class="test-section">
+        <h3>4. Test de Alertas</h3>
+        <button onclick="testAlerts()">🚨 Cargar Alertas</button>
+        <div id="alertsCount">Esperando datos...</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>🔍 Debug Base de Datos</h3>
+        <button onclick="debugCitiesCount()">🔢 Contar Ciudades de Perú</button>
+        <button onclick="debugAllCities()">📊 Ver Todas las Ciudades</button>
+        <div id="debugResults">Esperando debug...</div>
+    </div>
+    
+    <div class="test-section">
+        <h3>📋 Log de Actividad</h3>
+        <div id="log"></div>
+        <button onclick="clearLog()">🗑️ Limpiar Log</button>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8081/api';
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            logDiv.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        async function testConnection() {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = '🔄 Probando conexión...';
+            
+            try {
+                log('Probando conexión con: ' + API_BASE);
+                const response = await fetch(`${API_BASE}/test/health`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    statusDiv.innerHTML = `<span class="success">✅ Conectado - ${data.message}</span>`;
+                    log('✅ Conexión exitosa: ' + JSON.stringify(data), 'success');
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                statusDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+                log('❌ Error de conexión: ' + error.message, 'error');
+            }
+        }
+        
+        async function testCountries() {
+            const select = document.getElementById('testCountrySelect');
+            select.innerHTML = '<option>🔄 Cargando...</option>';
+            
+            try {
+                log('Solicitando países...');
+                const response = await fetch(`${API_BASE}/location/countries`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const countries = await response.json();
+                log(`📍 Recibidos ${countries.length} países`, 'success');
+                
+                select.innerHTML = '<option value="">Seleccionar País</option>';
+                countries.forEach(country => {
+                    const option = document.createElement('option');
+                    option.value = country.id;
+                    option.textContent = country.name;
+                    select.appendChild(option);
+                });
+                
+                log('✅ Países cargados en selector', 'success');
+                
+            } catch (error) {
+                select.innerHTML = '<option>❌ Error cargando</option>';
+                log('❌ Error cargando países: ' + error.message, 'error');
+            }
+        }
+        
+        async function testCities() {
+            const select = document.getElementById('testCitySelect');
+            select.innerHTML = '<option>🔄 Cargando ciudades de Perú...</option>';
+            
+            try {
+                log('Solicitando ciudades de Perú (ID: 1)...');
+                const response = await fetch(`${API_BASE}/location/cities/1`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const cities = await response.json();
+                log(`🏙️ Recibidas ${cities.length} ciudades`, 'success');
+                
+                select.innerHTML = '<option value="">Seleccionar Ciudad</option>';
+                cities.forEach(city => {
+                    const option = document.createElement('option');
+                    option.value = city.id;
+                    option.textContent = city.name;
+                    select.appendChild(option);
+                });
+                
+                log('✅ Ciudades cargadas en selector', 'success');
+                
+            } catch (error) {
+                select.innerHTML = '<option>❌ Error cargando</option>';
+                log('❌ Error cargando ciudades: ' + error.message, 'error');
+            }
+        }
+        
+        async function testAlerts() {
+            const countDiv = document.getElementById('alertsCount');
+            countDiv.innerHTML = '🔄 Cargando alertas...';
+            
+            try {
+                log('Solicitando alertas...');
+                const response = await fetch(`${API_BASE}/alerts`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const alerts = await response.json();
+                log(`🚨 Recibidas ${alerts.length} alertas`, 'success');
+                
+                countDiv.innerHTML = `<span class="success">✅ ${alerts.length} alertas encontradas</span>`;
+                
+                if (alerts.length > 0) {
+                    log('Primera alerta: ' + JSON.stringify(alerts[0]), 'info');
+                }
+                
+            } catch (error) {
+                countDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+                log('❌ Error cargando alertas: ' + error.message, 'error');
+            }
+        }
+        
+        async function debugCitiesCount() {
+            const debugDiv = document.getElementById('debugResults');
+            debugDiv.innerHTML = '🔄 Contando ciudades...';
+            
+            try {
+                log('Debug: Contando ciudades de Perú (ID: 1)...');
+                const response = await fetch(`${API_BASE}/location/debug/cities-count/1`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.text();
+                log('🔢 Resultado del conteo: ' + result, 'success');
+                debugDiv.innerHTML = `<span class="success">✅ ${result}</span>`;
+                
+            } catch (error) {
+                debugDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+                log('❌ Error en debug ciudades: ' + error.message, 'error');
+            }
+        }
+        
+        async function debugAllCities() {
+            const debugDiv = document.getElementById('debugResults');
+            debugDiv.innerHTML = '🔄 Obteniendo estadísticas...';
+            
+            try {
+                log('Debug: Obteniendo todas las ciudades...');
+                const response = await fetch(`${API_BASE}/location/debug/all-cities`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.text();
+                log('📊 Estadísticas de ciudades: ' + result, 'success');
+                debugDiv.innerHTML = `<pre class="success">${result}</pre>`;
+                
+            } catch (error) {
+                debugDiv.innerHTML = `<span class="error">❌ Error: ${error.message}</span>`;
+                log('❌ Error en debug estadísticas: ' + error.message, 'error');
+            }
+        }
+        
+        // Auto-test al cargar la página
+        window.onload = function() {
+            log('🚀 Página de pruebas cargada');
+            log('🔗 Backend URL: ' + API_BASE);
+            testConnection();
+        };
+    </script>
+</body>
+</html>
