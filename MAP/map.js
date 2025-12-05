@@ -3,7 +3,7 @@
 // ========================================
 const GOOGLE_MAPS_API_KEY = "AIzaSyBFw0Qbyq9zTFTd-tUqqo6YK6iMOTY"; // Reemplaza con tu API key de Google Maps
 const GOMAPS_API_KEY = "3076fd4f58eece8c1dafba329cf1032e"; // API key de GoMaps (respaldo para búsquedas)
-const API_BASE = "http://localhost:8081/api";
+const API_BASE = "https://mi-backend-production-a259.up.railway.app/api";
 
 let offlineMode = false;
 
