@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8081/api';
+const API_BASE_URL = 'https://mi-backend-production-a259.up.railway.app/api';
 
 const api = {
     // Helper para headers con token (si implementamos JWT en el futuro)

@@ -1,11 +1,14 @@
-# Use the official Nginx image as the base image
+# Usa la imagen oficial de Nginx
 FROM nginx:alpine
 
-# Copy the static content to the Nginx html directory
+# Borra el contenido por defecto de Nginx
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copia tu proyecto (HTML, CSS, JS)
 COPY . /usr/share/nginx/html
 
-# Expose port 80
+# Expone puerto 80
 EXPOSE 80
 
-# Start Nginx
+# Arranca Nginx
 CMD ["nginx", "-g", "daemon off;"]
