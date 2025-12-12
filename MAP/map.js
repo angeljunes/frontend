@@ -307,138 +307,414 @@ async function seleccionarDireccion(address) {
   }
 }
 
-// --- Emergencia: geolocalizar, centrar y enviar alerta ---
-async function handleEmergencyClick() {
-  if (!navigator.geolocation) {
-    alert('Geolocalización no soportada en este navegador.');
-    return;
-  }
+// ========================================
+// MÓDULO DE GEOLOCALIZACIÓN OPTIMIZADO
+// ========================================
 
-  console.log('\n🚨 BOTÓN DE EMERGENCIA ACTIVADO');
-  console.log('═══════════════════════════════════════════════════════');
-  console.log('🔄 Solicitando ubicación GPS...');
+const GeoLocationManager = {
+  isGettingLocation: false,
+  watchId: null,
+  currentController: null,
 
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    const accuracy = pos.coords.accuracy;
+  retryConfig: [
+    {
+      name: 'Intento 1 - Alta precisión',
+      enableHighAccuracy: true,
+      timeout: 20000,
+      maximumAge: 0
+    },
+    {
+      name: 'Intento 2 - Alta precisión con caché',
+      enableHighAccuracy: true,
+      timeout: 30000,
+      maximumAge: 300000
+    },
+    {
+      name: 'Intento 3 - Baja precisión',
+      enableHighAccuracy: false,
+      timeout: 15000,
+      maximumAge: 600000
+    }
+  ],
 
-    console.log('📍 Ubicación obtenida para emergencia');
-    console.log(`📌 Latitud: ${lat}`);
-    console.log(`📌 Longitud: ${lng}`);
-    console.log(`📏 Precisión: ${accuracy.toFixed(0)} metros`);
-
-    // Centrar mapa y colocar marcador
-    map.setView([lat, lng], 17);
-    placeMarker(lat, lng, `🚨 EMERGENCIA\nObteniendo dirección...\nLat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nPrecisión: ${accuracy.toFixed(0)}m`);
-
-    // Obtener dirección mediante reverse geocoding
-    console.log('🔄 Obteniendo dirección de emergencia...');
-    const geocodeResult = await reverseGeocode(lat, lng);
-
-    let address = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
-    let countryName = null;
-    let cityName = null;
-
-    if (geocodeResult) {
-      address = geocodeResult.address;
-      console.log(`✅ Dirección de emergencia obtenida: ${address}`);
-
-      // Rellenar campo de dirección
-      document.getElementById('direccionInput').value = address;
-
-      // Actualizar popup del marcador
-      if (marker) {
-        marker.bindPopup(`🚨 EMERGENCIA\n${address}\n\nLat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nPrecisión: ${accuracy.toFixed(0)}m`).openPopup();
-      }
-
-      // Detectar país y ciudad
-      const components = geocodeResult.components;
-      components.forEach(component => {
-        if (component.types.includes('country')) {
-          countryName = component.long_name;
-        }
-        if (component.types.includes('locality')) {
-          cityName = component.long_name;
-        } else if (component.types.includes('administrative_area_level_2') && !cityName) {
-          cityName = component.long_name;
-        }
-      });
-
-      console.log('🌍 País detectado:', countryName || 'N/A');
-      console.log('🏙️ Ciudad detectada:', cityName || 'N/A');
-
-      // Auto-seleccionar país y ciudad
-      if (countryName) {
-        await selectCountryByName(countryName);
-      }
-      if (cityName) {
-        await selectCityByName(cityName);
-      }
-    } else {
-      console.warn('⚠️ No se pudo obtener dirección, usando coordenadas');
-      document.getElementById('direccionInput').value = address;
+  async getCurrentPosition(onSuccess, onError, options = {}) {
+    if (!navigator.geolocation) {
+      const error = new Error('Geolocalización no soportada en este navegador');
+      console.error('❌', error.message);
+      if (onError) onError(error);
+      return;
     }
 
-    // Enviar emergencia al backend de Spring Boot
+    if (this.isGettingLocation) {
+      console.warn('⚠️ Ya hay una operación de geolocalización en curso. Cancelando anterior...');
+      this.cancelCurrentOperation();
+    }
+
+    this.isGettingLocation = true;
+    const startTime = Date.now();
+
+    console.log('\n═══════════════════════════════════════════════════════');
+    console.log('📍 INICIANDO GEOLOCALIZACIÓN CON SISTEMA DE REINTENTOS');
+    console.log('═══════════════════════════════════════════════════════');
+
+    for (let i = 0; i < this.retryConfig.length; i++) {
+      const config = this.retryConfig[i];
+      console.log(`\n🔄 ${config.name}`);
+      console.log(`   - Alta precisión: ${config.enableHighAccuracy ? 'Sí' : 'No'}`);
+      console.log(`   - Timeout: ${config.timeout}ms`);
+      console.log(`   - Caché máximo: ${config.maximumAge}ms`);
+
+      try {
+        const position = await this._getPositionPromise(config);
+        const elapsed = Date.now() - startTime;
+
+        console.log('\n✅ GEOLOCALIZACIÓN EXITOSA');
+        console.log('═══════════════════════════════════════════════════════');
+        console.log(`📌 Latitud: ${position.coords.latitude}`);
+        console.log(`📌 Longitud: ${position.coords.longitude}`);
+        console.log(`📏 Precisión: ${position.coords.accuracy.toFixed(0)} metros`);
+        console.log(`⏱️ Tiempo total: ${elapsed}ms`);
+        console.log(`✓ Exitoso en: ${config.name}`);
+        console.log('═══════════════════════════════════════════════════════');
+
+        this.isGettingLocation = false;
+        if (onSuccess) onSuccess(position);
+        return;
+
+      } catch (error) {
+        console.warn(`⚠️ ${config.name} falló:`, error.message);
+
+        if (i === this.retryConfig.length - 1) {
+          console.log('\n🔄 Todos los intentos GPS fallaron. Intentando geolocalización por IP...');
+
+          try {
+            const ipLocation = await this._getLocationByIP();
+            const elapsed = Date.now() - startTime;
+
+            console.log('\n✅ GEOLOCALIZACIÓN POR IP EXITOSA');
+            console.log('═══════════════════════════════════════════════════════');
+            console.log(`📌 Latitud: ${ipLocation.coords.latitude}`);
+            console.log(`📌 Longitud: ${ipLocation.coords.longitude}`);
+            console.log(`📏 Precisión estimada: ~${ipLocation.coords.accuracy} metros`);
+            console.log(`⏱️ Tiempo total: ${elapsed}ms`);
+            console.log('⚠️ Ubicación aproximada basada en IP');
+            console.log('═══════════════════════════════════════════════════════');
+
+            this.isGettingLocation = false;
+            if (onSuccess) onSuccess(ipLocation);
+            return;
+
+          } catch (ipError) {
+            console.error('❌ Fallback a IP también falló:', ipError.message);
+          }
+        }
+
+        continue;
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.error('\n❌ GEOLOCALIZACIÓN FALLÓ COMPLETAMENTE');
+    console.error('═══════════════════════════════════════════════════════');
+    console.error(`⏱️ Tiempo total: ${elapsed}ms`);
+    console.error('❌ Todos los métodos de geolocalización fallaron');
+    console.error('═══════════════════════════════════════════════════════');
+
+    this.isGettingLocation = false;
+
+    const finalError = {
+      code: 0,
+      message: 'No se pudo obtener la ubicación después de múltiples intentos'
+    };
+
+    if (onError) onError(finalError);
+  },
+
+  _getPositionPromise(options) {
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error(`Timeout después de ${options.timeout}ms`));
+      }, options.timeout + 1000);
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          clearTimeout(timeoutId);
+          resolve(position);
+        },
+        (error) => {
+          clearTimeout(timeoutId);
+          reject(error);
+        },
+        options
+      );
+    });
+  },
+
+  async _getLocationByIP() {
     try {
-      const alertData = {
-        title: 'EMERGENCIA',
-        description: `Botón de emergencia activado. Precisión: ${accuracy.toFixed(0)}m`,
-        priority: 'ALTA',
-        // Compatibilidad de nombres de campos
-        latitude: lat,
-        longitude: lng,
-        latitud: lat,
-        longitud: lng,
-        address: address,
-        country: countryName,
-        city: cityName
+      const response = await fetch('https://ipapi.co/json/');
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.latitude || !data.longitude) {
+        throw new Error('Respuesta inválida del servicio de IP');
+      }
+
+      return {
+        coords: {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          accuracy: 50000,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null
+        },
+        timestamp: Date.now(),
+        fromIP: true
       };
 
-      console.log('📤 Enviando alerta de emergencia al backend...');
-      const newAlert = await createAlert(alertData);
-      console.log('✅ Emergencia registrada exitosamente');
-      console.log('═══════════════════════════════════════════════════════');
-
-      alert(`🚨 EMERGENCIA REGISTRADA\n\nID: ${newAlert.id}\nDirección: ${address}\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\nPrecisión: ${accuracy.toFixed(0)}m`);
-
-    } catch (e) {
-      console.error('❌ Error al enviar la emergencia:', e);
-      console.log('═══════════════════════════════════════════════════════');
-      alert(`📍 Ubicación marcada\nDirección: ${address}\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\n\n⚠️ No se pudo registrar en el servidor.\nVerificar conexión con backend.`);
+    } catch (error) {
+      throw new Error(`Geolocalización por IP falló: ${error.message}`);
     }
-  }, (err) => {
-    console.error('\n❌ ERROR DE GEOLOCALIZACIÓN EN EMERGENCIA');
-    console.error('═══════════════════════════════════════════════════════');
-    console.error('Código de error:', err.code);
-    console.error('Mensaje:', err.message);
+  },
 
-    let errorMsg = 'No se pudo obtener tu ubicación.\n';
-    switch (err.code) {
-      case err.PERMISSION_DENIED:
-        errorMsg += 'Permiso denegado. Activa permisos de ubicación.';
+  cancelCurrentOperation() {
+    this.isGettingLocation = false;
+    console.log('🚫 Operación de geolocalización cancelada');
+  },
+
+  startWatching(onSuccess, onError, options = {}) {
+    if (!navigator.geolocation) {
+      console.error('❌ Geolocalización no soportada');
+      return;
+    }
+
+    if (this.watchId !== null) {
+      this.stopWatching();
+    }
+
+    const defaultOptions = {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 5000
+    };
+
+    const finalOptions = { ...defaultOptions, ...options };
+
+    console.log('\n📡 INICIANDO SEGUIMIENTO CONTINUO DE UBICACIÓN');
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('Configuración:', finalOptions);
+
+    this.watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        console.log(`📍 Actualización de ubicación: ${position.coords.latitude}, ${position.coords.longitude} (±${position.coords.accuracy.toFixed(0)}m)`);
+        if (onSuccess) onSuccess(position);
+      },
+      (error) => {
+        console.error('❌ Error en watchPosition:', this._getErrorMessage(error));
+        if (onError) onError(error);
+      },
+      finalOptions
+    );
+
+    console.log(`✅ Watch iniciado con ID: ${this.watchId}`);
+  },
+
+  stopWatching() {
+    if (this.watchId !== null) {
+      navigator.geolocation.clearWatch(this.watchId);
+      console.log(`🛑 Watch detenido (ID: ${this.watchId})`);
+      this.watchId = null;
+    }
+  },
+
+  _getErrorMessage(error) {
+    let message = '';
+    let suggestion = '';
+
+    switch (error.code) {
+      case error.PERMISSION_DENIED:
+        message = 'Permiso de ubicación denegado';
+        suggestion = '💡 Solución: Permite el acceso a la ubicación en la configuración de tu navegador';
         break;
-      case err.POSITION_UNAVAILABLE:
-        errorMsg += 'Ubicación no disponible. Verifica GPS/conexión.';
+      case error.POSITION_UNAVAILABLE:
+        message = 'Ubicación no disponible';
+        suggestion = '💡 Solución: Verifica que el GPS esté activado y que tengas conexión';
         break;
-      case err.TIMEOUT:
-        errorMsg += 'Tiempo agotado. Intenta de nuevo.';
+      case error.TIMEOUT:
+        message = 'Tiempo de espera agotado';
+        suggestion = '💡 Solución: Intenta nuevamente. Puede ser un problema temporal de señal';
         break;
       default:
-        errorMsg += 'Error desconocido.';
+        message = 'Error desconocido de geolocalización';
+        suggestion = '💡 Solución: Verifica tu conexión y permisos del navegador';
     }
-    alert(errorMsg);
-  }, {
-    enableHighAccuracy: true,
-    timeout: 15000,
-    maximumAge: 0
-  });
+
+    return `${message}\n${suggestion}`;
+  },
+
+  showErrorToUser(error) {
+    const message = this._getErrorMessage(error);
+    alert(`❌ Error de Geolocalización\n\n${message}`);
+  }
+};
+
+// ========================================
+// FUNCIÓN DEBOUNCE PARA GEOLOCALIZACIÓN
+// ========================================
+
+function debounceGeolocation(func, wait = 1000) {
+  let timeout;
+  let isRunning = false;
+
+  return function executedFunction(...args) {
+    if (isRunning) {
+      console.warn('⚠️ Operación de geolocalización ya en curso, ignorando clic');
+      return;
+    }
+
+    clearTimeout(timeout);
+
+    timeout = setTimeout(async () => {
+      isRunning = true;
+      try {
+        await func.apply(this, args);
+      } finally {
+        isRunning = false;
+      }
+    }, wait);
+  };
 }
 
-if (typeof emergencyBtn !== 'undefined' && emergencyBtn) {
-  emergencyBtn.addEventListener('click', handleEmergencyClick);
+// ========================================
+// MANEJADOR DE EMERGENCIA OPTIMIZADO
+// ========================================
+
+async function handleEmergencyClick() {
+  console.log('\n🚨 BOTÓN DE EMERGENCIA ACTIVADO');
+  console.log('═══════════════════════════════════════════════════════');
+
+  const emergencyBtn = document.getElementById('emergencyBtn');
+  const originalText = emergencyBtn ? emergencyBtn.textContent : '';
+
+  if (emergencyBtn) {
+    emergencyBtn.disabled = true;
+    emergencyBtn.textContent = '🔄 Obteniendo ubicación...';
+  }
+
+  GeoLocationManager.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy;
+      const fromIP = pos.fromIP || false;
+
+      console.log('📍 Ubicación obtenida para emergencia');
+      console.log(`📌 Latitud: ${lat}`);
+      console.log(`📌 Longitud: ${lng}`);
+      console.log(`📏 Precisión: ${accuracy.toFixed(0)} metros`);
+      if (fromIP) console.log('⚠️ Ubicación aproximada (basada en IP)');
+
+      map.setView([lat, lng], 17);
+      placeMarker(lat, lng, `🚨 EMERGENCIA\nObteniendo dirección...\nLat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nPrecisión: ${accuracy.toFixed(0)}m${fromIP ? '\n⚠️ Ubicación aproximada' : ''}`);
+
+      console.log('🔄 Obteniendo dirección de emergencia...');
+      const geocodeResult = await reverseGeocode(lat, lng);
+
+      let address = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+      let countryName = null;
+      let cityName = null;
+
+      if (geocodeResult) {
+        address = geocodeResult.address;
+        console.log(`✅ Dirección de emergencia obtenida: ${address}`);
+
+        document.getElementById('direccionInput').value = address;
+
+        if (marker) {
+          marker.bindPopup(`🚨 EMERGENCIA\n${address}\n\nLat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}\nPrecisión: ${accuracy.toFixed(0)}m${fromIP ? '\n⚠️ Ubicación aproximada' : ''}`).openPopup();
+        }
+
+        const components = geocodeResult.components;
+        components.forEach(component => {
+          if (component.types.includes('country')) {
+            countryName = component.long_name;
+          }
+          if (component.types.includes('locality')) {
+            cityName = component.long_name;
+          } else if (component.types.includes('administrative_area_level_2') && !cityName) {
+            cityName = component.long_name;
+          }
+        });
+
+        console.log('🌍 País detectado:', countryName || 'N/A');
+        console.log('🏙️ Ciudad detectada:', cityName || 'N/A');
+
+        if (countryName) {
+          await selectCountryByName(countryName);
+        }
+        if (cityName) {
+          await selectCityByName(cityName);
+        }
+      } else {
+        console.warn('⚠️ No se pudo obtener dirección, usando coordenadas');
+        document.getElementById('direccionInput').value = address;
+      }
+
+      try {
+        const alertData = {
+          title: 'EMERGENCIA',
+          description: `Botón de emergencia activado. Precisión: ${accuracy.toFixed(0)}m${fromIP ? ' (ubicación aproximada por IP)' : ''}`,
+          priority: 'ALTA',
+          latitude: lat,
+          longitude: lng,
+          latitud: lat,
+          longitud: lng,
+          address: address,
+          country: countryName,
+          city: cityName
+        };
+
+        console.log('📤 Enviando alerta de emergencia al backend...');
+        const newAlert = await createAlert(alertData);
+        console.log('✅ Emergencia registrada exitosamente');
+        console.log('═══════════════════════════════════════════════════════');
+
+        alert(`🚨 EMERGENCIA REGISTRADA\n\nID: ${newAlert.id}\nDirección: ${address}\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\nPrecisión: ${accuracy.toFixed(0)}m${fromIP ? '\n⚠️ Ubicación aproximada' : ''}`);
+
+      } catch (e) {
+        console.error('❌ Error al enviar la emergencia:', e);
+        console.log('═══════════════════════════════════════════════════════');
+        alert(`📍 Ubicación marcada\nDirección: ${address}\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\n\n⚠️ No se pudo registrar en el servidor.\nVerificar conexión con backend.`);
+      }
+
+      if (emergencyBtn) {
+        emergencyBtn.textContent = originalText;
+        emergencyBtn.disabled = false;
+      }
+    },
+    (error) => {
+      console.error('\n❌ ERROR DE GEOLOCALIZACIÓN EN EMERGENCIA');
+      console.error('═══════════════════════════════════════════════════════');
+      console.error('Error:', error);
+
+      GeoLocationManager.showErrorToUser(error);
+
+      if (emergencyBtn) {
+        emergencyBtn.textContent = originalText;
+        emergencyBtn.disabled = false;
+      }
+    }
+  );
 }
+
+// Versión debounced del manejador de emergencia
+const debouncedEmergencyClick = debounceGeolocation(handleEmergencyClick, 500);
 
 // --- Registrar Alerta: usa la ubicación y los campos actuales y envía POST ---
 async function handleRegisterAlertClick() {
@@ -639,195 +915,132 @@ async function reverseGeocode(lat, lng) {
   return result;
 }
 
-// --- Geolocalización automática para rellenar formulario ---
+// ========================================
+// MANEJADOR DE AUTO-LOCALIZACIÓN OPTIMIZADO
+// ========================================
+
 async function handleAutoLocation() {
-  if (!navigator.geolocation) {
-    alert('Geolocalización no soportada en este navegador.');
-    return;
+  const btnAutoLocation = document.getElementById('btnAutoLocation');
+  const originalText = btnAutoLocation ? btnAutoLocation.textContent : '';
+
+  if (btnAutoLocation) {
+    btnAutoLocation.textContent = '🔄 Obteniendo ubicación...';
+    btnAutoLocation.disabled = true;
   }
 
-  const btnAutoLocation = document.getElementById('btnAutoLocation');
-  const originalText = btnAutoLocation.textContent;
-  btnAutoLocation.textContent = '🔄 Obteniendo ubicación...';
-  btnAutoLocation.disabled = true;
+  console.log('═══════════════════════════════════════════════════════');
+  console.log('📍 AUTO-LOCALIZACIÓN INICIADA');
+  console.log('═══════════════════════════════════════════════════════');
 
-  navigator.geolocation.getCurrentPosition(async (pos) => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
-    const accuracy = pos.coords.accuracy;
+  GeoLocationManager.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy;
+      const fromIP = pos.fromIP || false;
 
-    console.log('═══════════════════════════════════════════════════════');
-    console.log('📍 GEOLOCALIZACIÓN OBTENIDA');
-    console.log('═══════════════════════════════════════════════════════');
-    console.log(`📌 Latitud: ${lat}`);
-    console.log(`📌 Longitud: ${lng}`);
-    console.log(`📏 Precisión: ${accuracy.toFixed(0)} metros`);
-    console.log('═══════════════════════════════════════════════════════');
+      console.log(`📌 Latitud: ${lat}`);
+      console.log(`📌 Longitud: ${lng}`);
+      console.log(`📏 Precisión: ${accuracy.toFixed(0)} metros`);
+      if (fromIP) console.log('⚠️ Ubicación aproximada (basada en IP)');
 
-    // SIEMPRE centrar mapa y colocar marcador primero (esto funciona siempre)
-    console.log('🗺️ Centrando mapa en coordenadas...');
-    map.setView([lat, lng], 16);
-    placeMarker(lat, lng, `Tu ubicación\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\nPrecisión: ${accuracy.toFixed(0)}m`);
-    console.log('✅ Mapa centrado correctamente');
+      console.log('🗺️ Centrando mapa en coordenadas...');
+      map.setView([lat, lng], 16);
+      placeMarker(lat, lng, `Tu ubicación\nLat: ${lat.toFixed(6)}\nLng: ${lng.toFixed(6)}\nPrecisión: ${accuracy.toFixed(0)}m${fromIP ? '\n⚠️ Ubicación aproximada' : ''}`);
+      console.log('✅ Mapa centrado correctamente');
 
-    // Rellenar coordenadas en el campo de dirección como fallback
-    const coordsText = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
-    document.getElementById('direccionInput').value = coordsText;
+      const coordsText = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`;
+      document.getElementById('direccionInput').value = coordsText;
 
-    // Hacer reverse geocoding con sistema de fallback (Google Maps → Nominatim)
-    const geocodeResult = await reverseGeocode(lat, lng);
+      const geocodeResult = await reverseGeocode(lat, lng);
 
-    if (geocodeResult) {
-      // Reverse geocoding exitoso
-      const address = geocodeResult.address;
-      const components = geocodeResult.components;
+      if (geocodeResult) {
+        const address = geocodeResult.address;
+        const components = geocodeResult.components;
 
-      console.log('📍 Dirección detectada:', address);
-      console.log(`📊 Total de componentes: ${components.length}`);
+        console.log('📍 Dirección detectada:', address);
+        document.getElementById('direccionInput').value = address;
 
-      // Rellenar dirección (reemplazar coordenadas)
-      document.getElementById('direccionInput').value = address;
+        let countryName = null;
+        let cityName = null;
+        let stateName = null;
+        let districtName = null;
 
-      // Buscar país y ciudad en los componentes
-      let countryName = null;
-      let cityName = null;
-      let stateName = null;
-      let districtName = null;
+        components.forEach((component) => {
+          if (component.types.includes('country')) {
+            countryName = component.long_name;
+          }
+          if (component.types.includes('locality')) {
+            cityName = component.long_name;
+          } else if (component.types.includes('administrative_area_level_2') && !cityName) {
+            cityName = component.long_name;
+          }
+          if (component.types.includes('administrative_area_level_1')) {
+            stateName = component.long_name;
+          }
+          if (component.types.includes('sublocality_level_1') || component.types.includes('neighborhood')) {
+            districtName = component.long_name;
+          }
+        });
 
-      console.log('\n🔍 ANALIZANDO COMPONENTES DE DIRECCIÓN:');
-      console.log('═══════════════════════════════════════════════════════');
-      components.forEach((component, index) => {
-        console.log(`\n[${index + 1}] ${component.long_name}`);
-        console.log(`    Tipos: ${component.types.join(', ')}`);
-        if (component.short_name) console.log(`    Nombre corto: ${component.short_name}`);
+        console.log('🌍 País detectado:', countryName || '❌ NO DETECTADO');
+        console.log('🏙️ Ciudad detectada:', cityName || '❌ NO DETECTADO');
 
-        // País
-        if (component.types.includes('country')) {
-          countryName = component.long_name;
-          console.log(`    ✅ PAÍS DETECTADO: ${countryName}`);
+        if (countryName) {
+          await selectCountryByName(countryName);
         }
 
-        // Ciudad (prioridad: locality > administrative_area_level_2 > sublocality)
-        if (component.types.includes('locality')) {
-          cityName = component.long_name;
-          console.log(`    ✅ CIUDAD DETECTADA (locality): ${cityName}`);
-        } else if (component.types.includes('administrative_area_level_2') && !cityName) {
-          cityName = component.long_name;
-          console.log(`    ✅ CIUDAD DETECTADA (admin_level_2): ${cityName}`);
-        } else if (component.types.includes('sublocality') && !cityName) {
-          cityName = component.long_name;
-          console.log(`    ✅ CIUDAD DETECTADA (sublocality): ${cityName}`);
-        } else if (component.types.includes('administrative_area_level_3') && !cityName) {
-          cityName = component.long_name;
-          console.log(`    ✅ CIUDAD DETECTADA (admin_level_3): ${cityName}`);
+        let cityTried = false;
+        if (cityName) {
+          cityTried = await selectCityByName(cityName);
+        }
+        if (!cityTried && districtName) {
+          cityTried = await selectCityByName(districtName);
+        }
+        if (!cityTried && stateName) {
+          cityTried = await selectCityByName(stateName);
         }
 
-        // Estado/Provincia
-        if (component.types.includes('administrative_area_level_1')) {
-          stateName = component.long_name;
-          console.log(`    📍 Estado/Provincia: ${stateName}`);
+        if (btnAutoLocation) {
+          btnAutoLocation.textContent = '✅ Ubicación obtenida';
         }
 
-        // Distrito
-        if (component.types.includes('sublocality_level_1') || component.types.includes('neighborhood')) {
-          districtName = component.long_name;
-          console.log(`    🏘️ Distrito: ${districtName}`);
-        }
-      });
+        console.log('\n✅ PROCESO COMPLETADO EXITOSAMENTE');
 
-      console.log('\n═══════════════════════════════════════════════════════');
-      console.log('📊 RESUMEN DE DETECCIÓN:');
-      console.log('═══════════════════════════════════════════════════════');
-      console.log('🌍 País detectado:', countryName || '❌ NO DETECTADO');
-      console.log('🏙️ Ciudad detectada:', cityName || '❌ NO DETECTADO');
-      console.log('📍 Estado/Provincia:', stateName || 'N/A');
-      console.log('🏘️ Distrito:', districtName || 'N/A');
-      console.log('═══════════════════════════════════════════════════════');
+        setTimeout(() => {
+          if (btnAutoLocation) {
+            btnAutoLocation.textContent = originalText;
+            btnAutoLocation.disabled = false;
+          }
+        }, 2000);
 
-      // Intentar seleccionar el país en el dropdown
-      if (countryName) {
-        console.log(`\n🔍 Intentando seleccionar país: "${countryName}"`);
-        const countrySelected = await selectCountryByName(countryName);
-        if (!countrySelected) {
-          console.warn(`⚠️ No se pudo seleccionar el país "${countryName}"`);
-          console.warn('💡 Posibles causas:');
-          console.warn('   - El país no existe en tu base de datos');
-          console.warn('   - Diferencia de tildes (Peru vs Perú)');
-          console.warn('   - Nombre diferente en la BD');
-        }
       } else {
-        console.warn('⚠️ No se detectó país en el reverse geocoding');
-      }
+        console.warn('\n⚠️ No se pudo obtener dirección, mostrando solo coordenadas');
+        alert(`📍 Mapa centrado en tu ubicación\n${coordsText}\n\n⚠️ No se pudo obtener la dirección exacta.\nPuedes seleccionar país y ciudad manualmente.${fromIP ? '\n⚠️ Ubicación aproximada basada en IP' : ''}`);
 
-      // Intentar seleccionar la ciudad en el dropdown, con fallbacks (city -> district -> state)
-      let cityTried = false;
-      if (cityName) {
-        console.log(`\n🔍 Intentando seleccionar ciudad: "${cityName}"`);
-        cityTried = await selectCityByName(cityName);
+        if (btnAutoLocation) {
+          btnAutoLocation.textContent = originalText;
+          btnAutoLocation.disabled = false;
+        }
       }
-      if (!cityTried && districtName) {
-        console.log(`\n🔁 Intentando seleccionar por distrito: "${districtName}"`);
-        cityTried = await selectCityByName(districtName);
-      }
-      if (!cityTried && stateName) {
-        console.log(`\n🔁 Intentando seleccionar por estado/provincia: "${stateName}"`);
-        cityTried = await selectCityByName(stateName);
-      }
-      if (!cityTried) {
-        console.warn('⚠️ No se pudo seleccionar la ciudad automáticamente');
-        console.warn('💡 Posibles causas:');
-        console.warn('   - La ciudad no existe en tu base de datos para este país');
-        console.warn('   - Diferencia de nombres (Lima Metropolitana vs Lima)');
-        console.warn('   - Primero debes seleccionar el país manualmente');
-      }
+    },
+    (error) => {
+      console.error('\n❌ ERROR DE GEOLOCALIZACIÓN');
+      console.error('═══════════════════════════════════════════════════════');
+      console.error('Error:', error);
 
-      btnAutoLocation.textContent = '✅ Ubicación obtenida';
-      console.log('\n✅ PROCESO COMPLETADO EXITOSAMENTE');
-      setTimeout(() => {
+      GeoLocationManager.showErrorToUser(error);
+
+      if (btnAutoLocation) {
         btnAutoLocation.textContent = originalText;
         btnAutoLocation.disabled = false;
-      }, 2000);
-
-    } else {
-      // Reverse geocoding falló completamente
-      console.warn('\n⚠️ No se pudo obtener dirección, mostrando solo coordenadas');
-      alert(`📍 Mapa centrado en tu ubicación\n${coordsText}\n\n⚠️ No se pudo obtener la dirección exacta.\nPuedes seleccionar país y ciudad manualmente.`);
-      btnAutoLocation.textContent = originalText;
-      btnAutoLocation.disabled = false;
+      }
     }
-  }, (err) => {
-    console.error('\n❌ ERROR DE GEOLOCALIZACIÓN');
-    console.error('═══════════════════════════════════════════════════════');
-    console.error('Código de error:', err.code);
-    console.error('Mensaje:', err.message);
-    console.error('═══════════════════════════════════════════════════════');
-
-    let errorMsg = 'No se pudo obtener tu ubicación.\n';
-    switch (err.code) {
-      case err.PERMISSION_DENIED:
-        errorMsg += 'Permiso denegado. Activa permisos de ubicación.';
-        console.error('💡 Solución: Permite el acceso a la ubicación en tu navegador');
-        break;
-      case err.POSITION_UNAVAILABLE:
-        errorMsg += 'Ubicación no disponible. Verifica GPS/conexión.';
-        console.error('💡 Solución: Verifica que el GPS esté activado');
-        break;
-      case err.TIMEOUT:
-        errorMsg += 'Tiempo agotado. Intenta de nuevo.';
-        console.error('💡 Solución: Intenta nuevamente, puede ser problema de señal');
-        break;
-      default:
-        errorMsg += 'Error desconocido.';
-    }
-    alert(errorMsg);
-    btnAutoLocation.textContent = originalText;
-    btnAutoLocation.disabled = false;
-  }, {
-    enableHighAccuracy: true,
-    timeout: 15000,
-    maximumAge: 0
-  });
+  );
 }
+
+// Versión debounced del manejador de auto-localización
+const debouncedAutoLocation = debounceGeolocation(handleAutoLocation, 500);
 
 // Función auxiliar para seleccionar país por nombre
 async function selectCountryByName(countryName) {
@@ -1572,6 +1785,26 @@ function initFaltaModal() {
 document.addEventListener('DOMContentLoaded', () => {
   initializeApp();
   initFaltaModal();
+
+  // Configurar listener para botón de emergencia con debouncing
+  const emergencyBtn = document.getElementById('emergencyBtn');
+  if (emergencyBtn) {
+    emergencyBtn.addEventListener('click', debouncedEmergencyClick);
+    console.log('✅ Listener de EMERGENCIA configurado (con debouncing)');
+  } else {
+    console.warn('⚠️ No se encontró el botón emergencyBtn en el DOM');
+  }
+
+  // Configurar listener para botón de auto-localización con debouncing
+  const btnAutoLocation = document.getElementById('btnAutoLocation');
+  if (btnAutoLocation) {
+    btnAutoLocation.addEventListener('click', debouncedAutoLocation);
+    console.log('✅ Listener de AUTO-LOCALIZACIÓN configurado (con debouncing)');
+  } else {
+    console.warn('⚠️ No se encontró el botón btnAutoLocation en el DOM');
+  }
+
+  // Configurar listener para botón de registrar alerta
   const btnRegistrarAlerta = document.getElementById('btnRegistrarAlerta');
   if (btnRegistrarAlerta) {
     btnRegistrarAlerta.addEventListener('click', handleRegisterAlertClick);
